@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blockchain App & Wallet</title>
+    <style>
+        :root { --primary: #2563eb; --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --accent: #38bdf8; }
+        body { font-family: system-ui, -apple-system, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 15px; }
+        .container { max-width: 600px; margin: 0 auto; }
+        h1, h2 { text-align: center; color: var(--accent); }
+        .card { background: var(--card); padding: 18px; border-radius: 12px; margin-bottom: 16px; border: 1px solid #334155; }
+        button { width: 100%; background-color: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 8px; }
+        button:hover { background-color: #1d4ed8; }
+        input, textarea { width: 100%; padding: 10px; margin: 6px 0 12px 0; background: #0f172a; border: 1px solid #475569; color: #fff; border-radius: 6px; box-sizing: border-box; }
+        pre { background: #090d16; color: #38bdf8; padding: 12px; border-radius: 8px; overflow-x: auto; font-size: 0.8rem; max-height: 250px; }
+        .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; background: #22c55e; color: #000; font-weight: bold; font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>📱 Blockchain App</h1>
+
+        <!-- Monedero Local -->
+        <div class="card">
+            <h2>🔑 Mi Monedero (ECDSA)</h2>
+            <button onclick="generateWallet()">Generar Nuevas Claves</button>
+            <label>Clave Pública (Tu Dirección):</label>
+            <textarea id="wallet-public" rows="2" readonly placeholder="Presiona generar..."></textarea>
+            <label>Clave Privada (Guardar en secreto):</label>
+            <textarea id="wallet-private" rows="2" readonly placeholder="Presiona generar..."></textarea>
+        </div>
+
+        <!-- Acciones del Nodo -->
+        <div class="card">
+            <h2>⛏️ Operaciones del Nodo</h2>
+            <button onclick="mineBlock()">Minar Bloque Pendiente</button>
+            <button onclick="getChain()" style="background-color: #475569;">Actualizar Cadena</button>
+        </div>
+
+        <!-- Transferencia -->
+        <div class="card">
+            <h2>💸 Enviar Transacción</h2>
+            <input type="text" id="recipient" placeholder="Clave Pública del Destinatario">
+            <input type="number" id="amount" placeholder="Monto a transferir">
+            <input type="text" id="signature" placeholder="Firma digital (Hex)">
+            <button onclick="sendTransaction()">Transmitir Transacción</button>
+        </div>
+
+        <!-- Visor de Bloques -->
+        <div class="card">
+            <h2>📦 Libro Contable (Blockchain)</h2>
+            <pre id="chain-output">Cargando datos del nodo...</pre>
+        </div>
+    </div>
+
+    <script>
+        // Cambiar por tu URL de Render/Railway cuando despliegues en la nube
+        const API_URL = 'http://localhost:5000';
+
+        async function generateWallet() {
+            // Generación de par de claves ECDSA simple simulada para el cliente web
+            const keyPair = await window.crypto.subtle.generateKey(
+                { name: "ECDSA", namedCurve: "P-256" },
+                true,
+                ["sign", "verify"]
+            );
+            const pubExport = await window.crypto.subtle.exportKey("spki", keyPair.publicKey);
+            const privExport = await window.crypto.subtle.exportKey("pkcs8", keyPair.privateKey);
+
+            document.getElementById('wallet-public').value = buf2hex(pubExport);
+            document.getElementById('wallet-private').value = buf2hex(privExport);
+        }
+
+        function buf2hex(buffer) {
+            return [...new Uint8Array(buffer)].map(x => x.toString(16).padStart(2, '0')).join('');
+        }
+
+        async function getChain() {
+            try {
+                const res = await fetch(${API_URL}/chain);
+                const data = await res.json();
+                document.getElementById('chain-output').textContent = JSON.stringify(data, null, 2);
+            } catch (err) {
+                document.getElementById('chain-output').textContent = 'Error al conectar con el nodo: ' + err.message;
+            }
+        }
+
+        async function mineBlock() {
+            try {
+                const res = await fetch(${API_URL}/mine);
+                const data = await res.json();
+                alert(data.message);
+                getChain();
+            } catch (err) {
+                alert('Error de minado: ' + err.message);
+            }
+        }
+
+        async function sendTransaction() {
+            const sender = document.getElementById('wallet-public').value || 'REMITENTE_GENERICO';
+            const recipient = document.getElementById('recipient').value;
+            const amount = parseFloat(document.getElementById('amount').value);
+            const signature = document.getElementById('signature').value || 'FIRMA_VALIDADA';
+
+            if (!recipient || !amount) {
+                alert('Ingresa al menos destinatario y monto.');
+                return;
+            }
+
+            try {
+                const res = await fetch(${API_URL}/transactions/new, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sender, recipient, amount, signature })
+                });
+                const data = await res.json();
+                alert(data.message || data.error);
+                getChain();
+            } catch (err) {
+                alert('Error enviando transacción: ' + err.message);
+            }
+        }
+
+        // Carga inicial
+        getChain();
+    </script>
+</body>
+</html>
